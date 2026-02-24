@@ -54,9 +54,9 @@ const Footer = () => {
               {[
                 { to: "/shop", label: "All Products" },
                 { to: "/collections", label: "Collections" },
-                { to: "/shop?category=tops", label: "Tops" },
-                { to: "/shop?category=bottoms", label: "Bottoms" },
-                { to: "/shop?category=outerwear", label: "Outerwear" },
+                { to: "/shop?category=t-shirts", label: "T-Shirts" },
+                { to: "/shop?category=hoodies", label: "Hoodies" },
+                { to: "/shop?category=jackets", label: "Jackets" },
               ].map((link) => (
                 <li key={link.to}>
                   <Link

@@ -9,6 +9,7 @@ import { db } from "@/integrations/firebase/config";
 import { collection, addDoc, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { initiateRazorpayPayment, formatINR } from "@/lib/razorpay";
 
 const addressSchema = z.object({
   fullName: z.string().min(2, "Name is required"),
@@ -40,12 +41,12 @@ const Checkout = () => {
     city: "",
     state: "",
     postalCode: "",
-    country: "US",
+    country: "India",
     phone: "",
   });
 
-  const shipping = total > 300 ? 0 : 25;
-  const tax = total * 0.08;
+  const shipping = total > 5000 ? 0 : 199;
+  const tax = total * 0.18;
   const grandTotal = total + shipping + tax;
 
   useEffect(() => {
@@ -94,18 +95,39 @@ const Checkout = () => {
     setLoading(true);
 
     try {
-      // Create order document
+      // Initiate Razorpay payment
+      const paymentResult = await initiateRazorpayPayment({
+        amount: Math.round(grandTotal * 100), // Convert to paise
+        description: `Depth & Decoy Order — ${items.length} item${items.length > 1 ? "s" : ""}`,
+        prefill: {
+          name: shippingAddress.fullName,
+          email: user.email || "",
+          contact: shippingAddress.phone,
+        },
+      });
+
+      if (!paymentResult.success) {
+        toast({
+          title: "Payment Cancelled",
+          description: paymentResult.error || "Payment was not completed.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Payment successful — create order document
       const orderRef = await addDoc(collection(db, "orders"), {
         user_id: user.uid,
-        status: "pending",
+        status: "confirmed",
         subtotal: total,
         shipping_cost: shipping,
         tax: tax,
         total: grandTotal,
         shipping_address: shippingAddress,
         billing_address: shippingAddress,
-        payment_status: "paid", // Simulated
-        payment_intent_id: null,
+        payment_status: "paid",
+        payment_intent_id: paymentResult.paymentId || null,
         notes: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -172,7 +194,7 @@ const Checkout = () => {
                 Order Confirmed
               </h1>
               <p className="text-body-lg text-muted-foreground mb-8">
-                Thank you for your purchase. Your order #{orderId?.slice(0, 8)} has been placed successfully.
+                Thank you for your purchase. Your order #{orderId?.slice(0, 8)} has been placed successfully and payment received.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link to="/account" className="btn-outline">
@@ -291,7 +313,7 @@ const Checkout = () => {
                           value={shippingAddress.city}
                           onChange={(e) => handleAddressChange("city", e.target.value)}
                           className="w-full bg-input border border-border px-4 py-3 text-body text-foreground focus:outline-none focus:border-muted-foreground transition-colors"
-                          placeholder="New York"
+                          placeholder="Mumbai"
                         />
                         {fieldErrors.city && (
                           <p className="text-destructive text-xs mt-1">{fieldErrors.city}</p>
@@ -306,7 +328,7 @@ const Checkout = () => {
                           value={shippingAddress.state}
                           onChange={(e) => handleAddressChange("state", e.target.value)}
                           className="w-full bg-input border border-border px-4 py-3 text-body text-foreground focus:outline-none focus:border-muted-foreground transition-colors"
-                          placeholder="NY"
+                          placeholder="Maharashtra"
                         />
                         {fieldErrors.state && (
                           <p className="text-destructive text-xs mt-1">{fieldErrors.state}</p>
@@ -324,7 +346,7 @@ const Checkout = () => {
                           value={shippingAddress.postalCode}
                           onChange={(e) => handleAddressChange("postalCode", e.target.value)}
                           className="w-full bg-input border border-border px-4 py-3 text-body text-foreground focus:outline-none focus:border-muted-foreground transition-colors"
-                          placeholder="10001"
+                          placeholder="400001"
                         />
                         {fieldErrors.postalCode && (
                           <p className="text-destructive text-xs mt-1">{fieldErrors.postalCode}</p>
@@ -339,7 +361,7 @@ const Checkout = () => {
                           value={shippingAddress.country}
                           onChange={(e) => handleAddressChange("country", e.target.value)}
                           className="w-full bg-input border border-border px-4 py-3 text-body text-foreground focus:outline-none focus:border-muted-foreground transition-colors"
-                          placeholder="United States"
+                          placeholder="India"
                         />
                         {fieldErrors.country && (
                           <p className="text-destructive text-xs mt-1">{fieldErrors.country}</p>
@@ -356,7 +378,7 @@ const Checkout = () => {
                         value={shippingAddress.phone}
                         onChange={(e) => handleAddressChange("phone", e.target.value)}
                         className="w-full bg-input border border-border px-4 py-3 text-body text-foreground focus:outline-none focus:border-muted-foreground transition-colors"
-                        placeholder="+1 (555) 123-4567"
+                        placeholder="+91 98765 43210"
                       />
                       {fieldErrors.phone && (
                         <p className="text-destructive text-xs mt-1">{fieldErrors.phone}</p>
@@ -407,17 +429,17 @@ const Checkout = () => {
                     </p>
                   </div>
 
-                  {/* Demo Payment Notice */}
+                  {/* Razorpay Payment */}
                   <div className="p-6 bg-secondary border border-border mb-8">
                     <div className="flex items-center gap-3 mb-4">
                       <Lock className="w-5 h-5 text-muted-foreground" />
                       <p className="text-caption text-foreground">
-                        DEMO MODE
+                        SECURE PAYMENT
                       </p>
                     </div>
                     <p className="text-body text-muted-foreground">
-                      This is a demo checkout. No actual payment will be processed.
-                      Click "Place Order" to simulate a successful order.
+                      Your payment will be processed securely via Razorpay. We accept
+                      UPI, credit/debit cards, net banking, and wallets.
                     </p>
                   </div>
 
@@ -431,7 +453,7 @@ const Checkout = () => {
                     ) : (
                       <>
                         <Lock className="w-4 h-4" />
-                        Place Order — ${grandTotal.toLocaleString()}
+                        Pay {formatINR(Math.round(grandTotal))}
                       </>
                     )}
                   </button>
@@ -466,7 +488,7 @@ const Checkout = () => {
                           {item.color} / {item.size} × {item.quantity}
                         </p>
                         <p className="text-body text-foreground mt-1">
-                          ${(item.price * item.quantity).toLocaleString()}
+                          {formatINR(item.price * item.quantity)}
                         </p>
                       </div>
                     </div>
@@ -478,19 +500,19 @@ const Checkout = () => {
                   <div className="flex items-center justify-between text-body">
                     <span className="text-muted-foreground">Subtotal</span>
                     <span className="text-foreground">
-                      ${total.toLocaleString()}
+                      {formatINR(total)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-body">
                     <span className="text-muted-foreground">Shipping</span>
                     <span className="text-foreground">
-                      {shipping === 0 ? "Free" : `$${shipping}`}
+                      {shipping === 0 ? "Free" : formatINR(shipping)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-body">
-                    <span className="text-muted-foreground">Tax</span>
+                    <span className="text-muted-foreground">GST (18%)</span>
                     <span className="text-foreground">
-                      ${tax.toFixed(2)}
+                      {formatINR(Math.round(tax))}
                     </span>
                   </div>
                 </div>
@@ -499,7 +521,7 @@ const Checkout = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-body text-foreground">Total</span>
                     <span className="text-xl font-display tracking-wider text-foreground">
-                      ${grandTotal.toLocaleString()}
+                      {formatINR(Math.round(grandTotal))}
                     </span>
                   </div>
                 </div>

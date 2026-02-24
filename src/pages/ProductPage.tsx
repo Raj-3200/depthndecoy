@@ -12,6 +12,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { formatINR } from "@/lib/razorpay";
 
 /**
  * Attempt to map images to colors by naming convention.
@@ -234,7 +235,7 @@ const ProductPage = () => {
                   {product.name}
                 </h1>
                 <p className="text-xl font-light text-foreground mb-6">
-                  ${Number(product.price).toLocaleString()}
+                  {formatINR(Number(product.price))}
                 </p>
 
                 <p className="text-sm font-light text-muted-foreground leading-relaxed mb-8">
@@ -388,7 +389,7 @@ const ProductPage = () => {
                       </AccordionTrigger>
                       <AccordionContent className="pb-5">
                         <div className="space-y-3 text-sm font-light text-muted-foreground">
-                          <p>Free worldwide shipping on orders over $300. Standard shipping 5–7 business days.</p>
+                          <p>Free shipping across India on orders over ₹5,000. Standard delivery 3–7 business days.</p>
                           <p>Returns accepted within 14 days of delivery. Items must be unworn with tags attached.</p>
                         </div>
                       </AccordionContent>

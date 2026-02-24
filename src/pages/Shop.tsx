@@ -8,14 +8,14 @@ import { useSearchParams } from "react-router-dom";
 
 const priceRanges = [
   { id: "all", label: "All Prices", min: 0, max: Infinity },
-  { id: "under-100", label: "Under $100", min: 0, max: 100 },
-  { id: "100-250", label: "$100 – $250", min: 100, max: 250 },
-  { id: "250-500", label: "$250 – $500", min: 250, max: 500 },
-  { id: "over-500", label: "Over $500", min: 500, max: Infinity },
+  { id: "under-2000", label: "Under ₹2,000", min: 0, max: 2000 },
+  { id: "2000-5000", label: "₹2,000 – ₹5,000", min: 2000, max: 5000 },
+  { id: "5000-10000", label: "₹5,000 – ₹10,000", min: 5000, max: 10000 },
+  { id: "over-10000", label: "Over ₹10,000", min: 10000, max: Infinity },
 ];
 
 const sizes = ["S", "M", "L", "XL", "XXL", "28", "30", "32", "34", "36", "38", "One Size"];
-const colors = ["Black", "Charcoal", "Smoke Grey", "Ivory", "White"];
+const colors = ["Black", "Charcoal", "Smoke Grey", "White", "Navy", "Olive", "Dark Brown"];
 
 const Shop = () => {
   const [searchParams] = useSearchParams();

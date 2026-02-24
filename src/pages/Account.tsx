@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/firebase/config";
 import { doc, getDoc, collection, query, where, orderBy, getDocs } from "firebase/firestore";
 import type { Profile, Order } from "@/integrations/firebase/types";
+import { formatINR } from "@/lib/razorpay";
 
 const Account = () => {
   const { user, loading, signOut } = useAuth();
@@ -201,7 +202,7 @@ const Account = () => {
                         </div>
                         <div className="text-right">
                           <p className="text-body text-foreground">
-                            ${Number(order.total).toLocaleString()}
+                            {formatINR(Number(order.total))}
                           </p>
                           <p className="text-caption text-muted-foreground capitalize">
                             {order.status}

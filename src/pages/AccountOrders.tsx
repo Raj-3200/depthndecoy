@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/firebase/config";
 import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
 import type { Order, OrderItem } from "@/integrations/firebase/types";
+import { formatINR } from "@/lib/razorpay";
 
 type OrderWithItems = Order & { order_items?: OrderItem[] };
 
@@ -142,7 +143,7 @@ const AccountOrders = () => {
                         {order.status}
                       </span>
                       <span className="text-body font-medium text-foreground">
-                        ${Number(order.total).toLocaleString()}
+                        {formatINR(Number(order.total))}
                       </span>
                     </div>
                   </div>

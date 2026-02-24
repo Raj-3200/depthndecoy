@@ -40,7 +40,7 @@ const faqItems = [
   },
   {
     q: "Do you ship internationally?",
-    a: "Yes — we ship worldwide. Free shipping on orders over $300. International duties and taxes may apply and are the responsibility of the buyer.",
+    a: "Yes — we ship across India and internationally. Free shipping on orders over ₹5,000. International duties and taxes may apply and are the responsibility of the buyer.",
   },
   {
     q: "How do I find my size?",
@@ -225,7 +225,7 @@ const About = () => {
                 Shipping
               </h3>
               <ul className="space-y-2 text-sm font-light text-muted-foreground">
-                <li>• Free shipping on orders over $300</li>
+                <li>• Free shipping on orders over ₹5,000</li>
                 <li>• Standard: 5–7 business days</li>
                 <li>• Express: 2–3 business days</li>
                 <li>• Worldwide delivery available</li>

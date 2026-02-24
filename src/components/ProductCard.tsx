@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import type { Product } from "@/hooks/useProducts";
+import { formatINR } from "@/lib/razorpay";
 
 interface ProductCardProps {
   product: Product;
@@ -58,7 +59,7 @@ const ProductCard = ({ product, index = 0 }: ProductCardProps) => {
             {product.name}
           </h3>
           <p className="text-sm font-light text-muted-foreground">
-            ${Number(product.price).toLocaleString()}
+            {formatINR(Number(product.price))}
           </p>
         </div>
 

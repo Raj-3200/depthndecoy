@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Plus, Minus, ArrowRight, ShoppingBag } from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import { useCart } from "@/contexts/CartContext";
+import { formatINR } from "@/lib/razorpay";
 
 const Cart = () => {
   const { items, removeItem, updateQuantity, total } = useCart();
 
-  const shipping = total > 300 ? 0 : 25;
+  const shipping = total > 5000 ? 0 : 199;
   const grandTotal = total + shipping;
 
   if (items.length === 0) {
@@ -136,7 +137,7 @@ const Cart = () => {
 
                             {/* Price */}
                             <p className="text-body text-foreground">
-                              ${(item.price * item.quantity).toLocaleString()}
+                              {formatINR(item.price * item.quantity)}
                             </p>
                           </div>
                         </div>
@@ -173,18 +174,18 @@ const Cart = () => {
                   <div className="flex items-center justify-between text-body">
                     <span className="text-muted-foreground">Subtotal</span>
                     <span className="text-foreground">
-                      ${total.toLocaleString()}
+                      {formatINR(total)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-body">
                     <span className="text-muted-foreground">Shipping</span>
                     <span className="text-foreground">
-                      {shipping === 0 ? "Free" : `$${shipping}`}
+                      {shipping === 0 ? "Free" : formatINR(shipping)}
                     </span>
                   </div>
                   {shipping > 0 && (
                     <p className="text-[11px] text-muted-foreground">
-                      Free shipping on orders over $300
+                      Free shipping on orders over ₹5,000
                     </p>
                   )}
                 </div>
@@ -193,7 +194,7 @@ const Cart = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-body text-foreground">Total</span>
                     <span className="text-xl font-display tracking-wider text-foreground">
-                      ${grandTotal.toLocaleString()}
+                      {formatINR(grandTotal)}
                     </span>
                   </div>
                 </div>
@@ -204,7 +205,7 @@ const Cart = () => {
 
                 <div className="mt-6 space-y-3">
                   <p className="text-[11px] text-muted-foreground text-center">
-                    Secure checkout powered by Stripe
+                    Secure checkout powered by Razorpay
                   </p>
                   <p className="text-[11px] text-muted-foreground text-center">
                     Free returns within 14 days

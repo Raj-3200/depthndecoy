@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import type { WishlistItem, Product } from "@/integrations/firebase/types";
+import { formatINR } from "@/lib/razorpay";
 
 const AccountWishlist = () => {
   const { user, loading: authLoading } = useAuth();
@@ -155,7 +156,7 @@ const AccountWishlist = () => {
                       {item.product?.name}
                     </h3>
                     <p className="text-body text-muted-foreground mt-1">
-                      ${Number(item.product?.price).toLocaleString()}
+                      {formatINR(Number(item.product?.price))}
                     </p>
                   </Link>
                 </motion.div>
