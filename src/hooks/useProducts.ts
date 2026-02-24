@@ -14,19 +14,44 @@ import type { Product, Category } from "@/integrations/firebase/types";
 
 export type { Product, Category };
 
-// Helper: fetch a single category by ID
-const fetchCategory = async (categoryId: string): Promise<Category | null> => {
-  const snap = await getDoc(doc(db, "categories", categoryId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Category;
+// ─── Fetch ALL products once, cache via React Query ──────────────
+// For a catalog of <500 products this is faster and avoids composite index issues.
+const fetchAllProducts = async (): Promise<Product[]> => {
+  const snap = await getDocs(collection(db, "products"));
+  const products = snap.docs.map(
+    (d) => ({ id: d.id, ...d.data() }) as Product
+  );
+
+  // Fetch all categories in one go
+  const catSnap = await getDocs(collection(db, "categories"));
+  const catMap = new Map<string, Category>();
+  catSnap.docs.forEach((d) => {
+    catMap.set(d.id, { id: d.id, ...d.data() } as Category);
+  });
+
+  // Attach categories
+  products.forEach((p) => {
+    if (p.category_id) {
+      p.category = catMap.get(p.category_id) || null;
+    }
+  });
+
+  // Sort newest first
+  products.sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  return products;
 };
 
-// Helper: attach category to product
-const attachCategory = async (product: Product): Promise<Product> => {
-  if (product.category_id) {
-    product.category = await fetchCategory(product.category_id);
-  }
-  return product;
+// Base hook — all other hooks derive from this cached data
+const useAllProducts = () => {
+  return useQuery({
+    queryKey: ["all-products"],
+    queryFn: fetchAllProducts,
+    staleTime: 5 * 60 * 1000, // cache for 5 min
+  });
 };
 
 export const useProducts = (filters?: {
@@ -34,119 +59,64 @@ export const useProducts = (filters?: {
   featured?: boolean;
   isNew?: boolean;
 }) => {
-  return useQuery({
-    queryKey: ["products", filters],
-    queryFn: async () => {
-      const constraints: any[] = [
-        where("in_stock", "==", true),
-        orderBy("created_at", "desc"),
-      ];
+  const { data: all = [], ...rest } = useAllProducts();
 
-      if (filters?.category && filters.category !== "all") {
-        const catQuery = query(
-          collection(db, "categories"),
-          where("slug", "==", filters.category)
-        );
-        const catSnap = await getDocs(catQuery);
-        if (!catSnap.empty) {
-          const catId = catSnap.docs[0].id;
-          constraints.push(where("category_id", "==", catId));
-        } else {
-          return [] as Product[];
-        }
-      }
+  let filtered = all.filter((p) => p.in_stock);
 
-      if (filters?.featured) {
-        constraints.push(where("featured", "==", true));
-      }
+  if (filters?.category && filters.category !== "all") {
+    filtered = filtered.filter(
+      (p) => p.category?.slug === filters.category
+    );
+  }
+  if (filters?.featured) {
+    filtered = filtered.filter((p) => p.featured);
+  }
+  if (filters?.isNew) {
+    filtered = filtered.filter((p) => p.is_new);
+  }
 
-      if (filters?.isNew) {
-        constraints.push(where("is_new", "==", true));
-      }
-
-      const q = query(collection(db, "products"), ...constraints);
-      const snap = await getDocs(q);
-      const products = snap.docs.map(
-        (d) => ({ id: d.id, ...d.data() }) as Product
-      );
-
-      await Promise.all(products.map(attachCategory));
-      return products;
-    },
-  });
+  return { ...rest, data: filtered };
 };
 
 export const useProduct = (slug: string) => {
-  return useQuery({
-    queryKey: ["product", slug],
-    queryFn: async () => {
-      const q = query(
-        collection(db, "products"),
-        where("slug", "==", slug)
-      );
-      const snap = await getDocs(q);
-      if (snap.empty) throw new Error("Product not found");
-      const product = {
-        id: snap.docs[0].id,
-        ...snap.docs[0].data(),
-      } as Product;
-      await attachCategory(product);
-      return product;
-    },
-    enabled: !!slug,
-  });
+  const { data: all = [], ...rest } = useAllProducts();
+  const product = all.find((p) => p.slug === slug) || null;
+
+  return {
+    ...rest,
+    data: product,
+    isError: rest.isSuccess && !product,
+    error: rest.isSuccess && !product ? new Error("Product not found") : null,
+  };
 };
 
 export const useFeaturedProducts = () => {
-  return useQuery({
-    queryKey: ["products", "featured"],
-    queryFn: async () => {
-      const q = query(
-        collection(db, "products"),
-        where("featured", "==", true),
-        where("in_stock", "==", true),
-        orderBy("created_at", "desc")
-      );
-      const snap = await getDocs(q);
-      const products = snap.docs.map(
-        (d) => ({ id: d.id, ...d.data() }) as Product
-      );
-      await Promise.all(products.map(attachCategory));
-      return products;
-    },
-  });
+  const { data: all = [], ...rest } = useAllProducts();
+  return {
+    ...rest,
+    data: all.filter((p) => p.featured && p.in_stock),
+  };
 };
 
 export const useNewArrivals = () => {
-  return useQuery({
-    queryKey: ["products", "new"],
-    queryFn: async () => {
-      const q = query(
-        collection(db, "products"),
-        where("is_new", "==", true),
-        where("in_stock", "==", true),
-        orderBy("created_at", "desc")
-      );
-      const snap = await getDocs(q);
-      const products = snap.docs.map(
-        (d) => ({ id: d.id, ...d.data() }) as Product
-      );
-      await Promise.all(products.map(attachCategory));
-      return products;
-    },
-  });
+  const { data: all = [], ...rest } = useAllProducts();
+  return {
+    ...rest,
+    data: all.filter((p) => p.is_new && p.in_stock),
+  };
 };
 
 export const useCategories = () => {
   return useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      const q = query(collection(db, "categories"), orderBy("name"));
-      const snap = await getDocs(q);
-      return snap.docs.map(
+      const snap = await getDocs(collection(db, "categories"));
+      const cats = snap.docs.map(
         (d) => ({ id: d.id, ...d.data() }) as Category
       );
+      return cats.sort((a, b) => a.name.localeCompare(b.name));
     },
+    staleTime: 5 * 60 * 1000,
   });
 };
 
@@ -154,26 +124,17 @@ export const useRelatedProducts = (
   productId: string,
   categoryId: string | null
 ) => {
-  return useQuery({
-    queryKey: ["products", "related", productId],
-    queryFn: async () => {
-      if (!categoryId) return [];
+  const { data: all = [], ...rest } = useAllProducts();
+  const related = categoryId
+    ? all
+        .filter(
+          (p) =>
+            p.category_id === categoryId &&
+            p.in_stock &&
+            p.id !== productId
+        )
+        .slice(0, 3)
+    : [];
 
-      const q = query(
-        collection(db, "products"),
-        where("category_id", "==", categoryId),
-        where("in_stock", "==", true),
-        limit(4)
-      );
-      const snap = await getDocs(q);
-      const products = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }) as Product)
-        .filter((p) => p.id !== productId)
-        .slice(0, 3);
-
-      await Promise.all(products.map(attachCategory));
-      return products;
-    },
-    enabled: !!categoryId,
-  });
+  return { ...rest, data: related, enabled: !!categoryId };
 };
