@@ -1,22 +1,39 @@
 /**
  * Firestore seed script — populates categories and products for Depth & Decoy.
- * Run: node scripts/seed-firestore.mjs
+ *
+ * Uses Firebase Admin SDK which BYPASSES security rules.
+ *
+ * Usage:
+ *   1. Download your service account key from Firebase Console:
+ *      Project Settings → Service Accounts → Generate New Private Key
+ *   2. Save it as  scripts/serviceAccountKey.json
+ *   3. Run:  node scripts/seed-firestore.mjs
  */
 
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc } from "firebase/firestore";
+import { readFileSync } from "fs";
+import { initializeApp, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyA959LkNh4WQzKISme24hp-xW2vVZxjQCc",
-  authDomain: "depthndecoy.firebaseapp.com",
-  projectId: "depthndecoy",
-  storageBucket: "depthndecoy.firebasestorage.app",
-  messagingSenderId: "317373309123",
-  appId: "1:317373309123:web:aeae019edc5fad1b44c276",
-};
+// Load service account key
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(
+    readFileSync(new URL("./serviceAccountKey.json", import.meta.url), "utf8")
+  );
+} catch {
+  console.error(
+    "\n❌  Missing service account key!\n\n" +
+      "   1. Go to https://console.firebase.google.com/project/depthndecoy/settings/serviceaccounts/adminsdk\n" +
+      "   2. Click  \"Generate New Private Key\"\n" +
+      "   3. Save the downloaded JSON as:\n" +
+      "      scripts/serviceAccountKey.json\n" +
+      "   4. Re-run:  node scripts/seed-firestore.mjs\n"
+  );
+  process.exit(1);
+}
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+initializeApp({ credential: cert(serviceAccount) });
+const db = getFirestore();
 
 const now = new Date().toISOString();
 
@@ -584,14 +601,14 @@ async function seed() {
   console.log("Seeding categories…");
   for (const cat of categories) {
     const { id, ...data } = cat;
-    await setDoc(doc(db, "categories", id), data);
+    await db.collection("categories").doc(id).set(data);
     console.log(`  ✓ ${cat.name}`);
   }
 
   console.log("\nSeeding products…");
   for (const prod of products) {
     const { id, ...data } = prod;
-    await setDoc(doc(db, "products", id), data);
+    await db.collection("products").doc(id).set(data);
     console.log(`  ✓ ${prod.name} — ₹${prod.price.toLocaleString("en-IN")}`);
   }
 

@@ -1,10 +1,33 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+  collection,
+  getDocs,
+  getDoc,
+  doc,
+  query,
+  where,
+  orderBy,
+  limit,
+} from "firebase/firestore";
+import { db } from "@/integrations/firebase/config";
 import type { Product, Category } from "@/integrations/firebase/types";
-import { localProducts, localCategories } from "@/data/products";
 
 export type { Product, Category };
 
-// ---- All product data is served locally — no Firestore needed ----
+// Helper: fetch a single category by ID
+const fetchCategory = async (categoryId: string): Promise<Category | null> => {
+  const snap = await getDoc(doc(db, "categories", categoryId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as Category;
+};
+
+// Helper: attach category to product
+const attachCategory = async (product: Product): Promise<Product> => {
+  if (product.category_id) {
+    product.category = await fetchCategory(product.category_id);
+  }
+  return product;
+};
 
 export const useProducts = (filters?: {
   category?: string;
@@ -14,23 +37,41 @@ export const useProducts = (filters?: {
   return useQuery({
     queryKey: ["products", filters],
     queryFn: async () => {
-      let results = localProducts.filter((p) => p.in_stock);
+      const constraints: any[] = [
+        where("in_stock", "==", true),
+        orderBy("created_at", "desc"),
+      ];
 
       if (filters?.category && filters.category !== "all") {
-        const cat = localCategories.find((c) => c.slug === filters.category);
-        if (!cat) return [] as Product[];
-        results = results.filter((p) => p.category_id === cat.id);
+        const catQuery = query(
+          collection(db, "categories"),
+          where("slug", "==", filters.category)
+        );
+        const catSnap = await getDocs(catQuery);
+        if (!catSnap.empty) {
+          const catId = catSnap.docs[0].id;
+          constraints.push(where("category_id", "==", catId));
+        } else {
+          return [] as Product[];
+        }
       }
 
       if (filters?.featured) {
-        results = results.filter((p) => p.featured);
+        constraints.push(where("featured", "==", true));
       }
 
       if (filters?.isNew) {
-        results = results.filter((p) => p.is_new);
+        constraints.push(where("is_new", "==", true));
       }
 
-      return results;
+      const q = query(collection(db, "products"), ...constraints);
+      const snap = await getDocs(q);
+      const products = snap.docs.map(
+        (d) => ({ id: d.id, ...d.data() }) as Product
+      );
+
+      await Promise.all(products.map(attachCategory));
+      return products;
     },
   });
 };
@@ -39,8 +80,17 @@ export const useProduct = (slug: string) => {
   return useQuery({
     queryKey: ["product", slug],
     queryFn: async () => {
-      const product = localProducts.find((p) => p.slug === slug);
-      if (!product) throw new Error("Product not found");
+      const q = query(
+        collection(db, "products"),
+        where("slug", "==", slug)
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) throw new Error("Product not found");
+      const product = {
+        id: snap.docs[0].id,
+        ...snap.docs[0].data(),
+      } as Product;
+      await attachCategory(product);
       return product;
     },
     enabled: !!slug,
@@ -50,24 +100,53 @@ export const useProduct = (slug: string) => {
 export const useFeaturedProducts = () => {
   return useQuery({
     queryKey: ["products", "featured"],
-    queryFn: async () =>
-      localProducts.filter((p) => p.featured && p.in_stock),
+    queryFn: async () => {
+      const q = query(
+        collection(db, "products"),
+        where("featured", "==", true),
+        where("in_stock", "==", true),
+        orderBy("created_at", "desc")
+      );
+      const snap = await getDocs(q);
+      const products = snap.docs.map(
+        (d) => ({ id: d.id, ...d.data() }) as Product
+      );
+      await Promise.all(products.map(attachCategory));
+      return products;
+    },
   });
 };
 
 export const useNewArrivals = () => {
   return useQuery({
     queryKey: ["products", "new"],
-    queryFn: async () =>
-      localProducts.filter((p) => p.is_new && p.in_stock),
+    queryFn: async () => {
+      const q = query(
+        collection(db, "products"),
+        where("is_new", "==", true),
+        where("in_stock", "==", true),
+        orderBy("created_at", "desc")
+      );
+      const snap = await getDocs(q);
+      const products = snap.docs.map(
+        (d) => ({ id: d.id, ...d.data() }) as Product
+      );
+      await Promise.all(products.map(attachCategory));
+      return products;
+    },
   });
 };
 
 export const useCategories = () => {
   return useQuery({
     queryKey: ["categories"],
-    queryFn: async () =>
-      [...localCategories].sort((a, b) => a.name.localeCompare(b.name)),
+    queryFn: async () => {
+      const q = query(collection(db, "categories"), orderBy("name"));
+      const snap = await getDocs(q);
+      return snap.docs.map(
+        (d) => ({ id: d.id, ...d.data() }) as Category
+      );
+    },
   });
 };
 
@@ -79,14 +158,21 @@ export const useRelatedProducts = (
     queryKey: ["products", "related", productId],
     queryFn: async () => {
       if (!categoryId) return [];
-      return localProducts
-        .filter(
-          (p) =>
-            p.category_id === categoryId &&
-            p.in_stock &&
-            p.id !== productId
-        )
+
+      const q = query(
+        collection(db, "products"),
+        where("category_id", "==", categoryId),
+        where("in_stock", "==", true),
+        limit(4)
+      );
+      const snap = await getDocs(q);
+      const products = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }) as Product)
+        .filter((p) => p.id !== productId)
         .slice(0, 3);
+
+      await Promise.all(products.map(attachCategory));
+      return products;
     },
     enabled: !!categoryId,
   });
